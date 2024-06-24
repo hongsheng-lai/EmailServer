@@ -12,12 +12,12 @@ docker build -t emailserver .
 ```
 docker run emailserver
 ```
-4. Or set the crontab as you wish.
+4. Or set the crontab as you wish make it the next miniute.
 ```
 crontab -e
 ```
 ```
-docker run emailserver
+50 22 25 06 * docker run emailserver
 00 08 * * 1-5 docker run auto-punch-in>/home/weber50432/auto_punch/log/in.log 2>&1
 20 17 * * 1-5 docker run auto-punch-out>/home/weber50432/auto_punch/log/out.log 2>&1
 ```
