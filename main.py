@@ -1,62 +1,77 @@
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-
+from email.mime.application import MIMEApplication
 import json
 import argparse
+import os
 
 def send_email(config, msg):
     try:
-        # Connect to the SMTP server
         server = smtplib.SMTP(config['smtp_server'], config['smtp_port'])
-        server.starttls()  # Secure the connection
-        server.login(config['smtp_user'], config['smtp_password'])  # Login to the SMTP server
-        server.send_message(msg)  # Send the email
+        server.starttls()
+        server.login(config['smtp_user'], config['smtp_password'])
+        server.send_message(msg)
         print("Email sent successfully!")
     except Exception as e:
         print(f"Failed to send email: {e}")
     finally:
-        server.quit()  # Close the connections
-        
+        server.quit()
+
 def load_config(config_path):
-    """
-    load config and check if it is valid
-    {
-        "smtp_server": "smtp.example.com", 
-        "smtp_port": 587, 
-        "smtp_user": "your_email@example.com", 
-        "smtp_password": "your_password"
-    } 
-    """
     with open(config_path, 'r') as f:
         config = json.load(f)
-        assert all(key in config for key in ['smtp_server', 'smtp_port', 'smtp_user', 'smtp_password'])
-        
+    required_keys = ['smtp_server', 'smtp_port', 'smtp_user', 'smtp_password', 'receiver', 'subject']
+    assert all(key in config for key in required_keys), f"Missing required keys in config. Required: {required_keys}"
     return config
-    
-def create_msg_plain(sender, receiver, subject, body):
-    # Create the email message
+
+def create_message(sender, receiver, subject, body_type, body_content, attachments=None):
     msg = MIMEMultipart()
     msg['From'] = sender
     msg['To'] = receiver
     msg['Subject'] = subject
-    msg.attach(MIMEText(body, 'plain'))
-    
+
+    # Handle body content
+    if body_type == 'plain':
+        msg.attach(MIMEText(body_content, 'plain'))
+    elif body_type == 'html':
+        if os.path.isfile(body_content):
+            with open(body_content, 'r', encoding='utf-8') as file:
+                html_content = file.read()
+            msg.attach(MIMEText(html_content, 'html'))
+        else:
+            msg.attach(MIMEText(body_content, 'html'))
+    else:
+        raise ValueError("Invalid body_type. Choose 'plain' or 'html'.")
+
+    # Handle attachments
+    if attachments:
+        for attachment in attachments:
+            with open(attachment, 'rb') as file:
+                part = MIMEApplication(file.read(), Name=os.path.basename(attachment))
+            part['Content-Disposition'] = f'attachment; filename="{os.path.basename(attachment)}"'
+            msg.attach(part)
+
     return msg
 
 def main():
     parser = argparse.ArgumentParser(description="Send email")
-    parser.add_argument('--config', required=True, help="path to the config file")
-    # parser.add_argument('--receiver', required=True, help="email address of the receiver")
-    # parser.add_argument('--subject', required=True, help="subject of the email")
-    # parser.add_argument('--body', required=True, help="body of the email")
-    
+    parser.add_argument('--config', required=True, help="Path to the config file")
+    parser.add_argument('--body-type', choices=['plain', 'html'], required=True, help="Type of email body")
+    parser.add_argument('--body-content', required=True, help="Content or file path for email body")
+    parser.add_argument('--attachments', nargs='*', help="File paths for attachments")
     args = parser.parse_args()
-    
-    config = load_config(args.config)
-    msg = create_msg_plain(config['smtp_user'], config["receiver"], config["subject"], config["body"])
-    send_email(config, msg)
 
+    config = load_config(args.config)
+    msg = create_message(
+        config['smtp_user'], 
+        config["receiver"], 
+        config["subject"], 
+        args.body_type, 
+        args.body_content, 
+        args.attachments
+    )
+    send_email(config, msg)
 
 if __name__ == '__main__':
     main()

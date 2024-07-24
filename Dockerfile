@@ -1,4 +1,7 @@
-FROM python:3.8
+FROM python:3.7
+
 WORKDIR /app
 COPY . /app
-CMD ["python", "main.py", "--config", "config.json"]
+
+# Run email_server.py when the container launches
+ENTRYPOINT ["python", "email_server.py"]
